@@ -1,4 +1,4 @@
-import { config } from "dotenv"
+import { config } from 'dotenv'
 
 // Load environment variables from .env file
 config()
@@ -15,6 +15,6 @@ afterAll(() => {
 })
 
 // Add global error handler
-process.on("unhandledRejection", (error) => {
-  console.error("Unhandled Rejection:", error)
+process.on('unhandledRejection', error => {
+  console.error('Unhandled Rejection:', error)
 })

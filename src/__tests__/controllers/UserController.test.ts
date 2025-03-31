@@ -1,18 +1,29 @@
-import { Request, Response, NextFunction } from "express"
-import { UserController } from "@/controllers/UserController"
-import { AppDataSource } from "@/config/database"
-import { User } from "@/entities/User"
-
+import { Request, Response, NextFunction } from 'express'
+import { UserController } from '@/controllers/UserController'
+import { AppDataSource } from '@/config/database'
+import { User } from '@/entities/User'
+import jwt from 'jsonwebtoken'
 // Mock the TypeORM repository
-jest.mock("@/config/database", () => ({
+jest.mock('@/config/database', () => ({
   AppDataSource: {
     getRepository: jest.fn(),
   },
 }))
 
-describe("UserController", () => {
+jest.mock('jsonwebtoken', () => ({
+  sign: jest.fn(),
+}))
+
+describe('UserController', () => {
   let userController: UserController
-  let mockRepository: any
+  let mockRepository: {
+    find: jest.Mock
+    findOne: jest.Mock
+    create: jest.Mock
+    save: jest.Mock
+    merge: jest.Mock
+    remove: jest.Mock
+  }
   let mockRequest: Partial<Request>
   let mockResponse: Partial<Response>
   const nextFunction: NextFunction = jest.fn()
@@ -29,10 +40,10 @@ describe("UserController", () => {
       save: jest.fn(),
       merge: jest.fn(),
       remove: jest.fn(),
-    };
+    }
 
     // Setup repository mock
-    (AppDataSource.getRepository as jest.Mock).mockReturnValue(mockRepository)
+    ;(AppDataSource.getRepository as jest.Mock).mockReturnValue(mockRepository)
 
     // Create controller instance
     userController = new UserController()
@@ -46,20 +57,20 @@ describe("UserController", () => {
     }
   })
 
-  describe("getAllUsers", () => {
-    it("should return all users", async () => {
+  describe('getAllUsers', () => {
+    it('should return all users', async () => {
       const mockUsers = [
         {
-          id: "1",
-          firstName: "John",
-          lastName: "Doe",
-          email: "john@example.com",
+          id: '1',
+          firstName: 'John',
+          lastName: 'Doe',
+          email: 'john@example.com',
         },
         {
-          id: "2",
-          firstName: "Jane",
-          lastName: "Doe",
-          email: "jane@example.com",
+          id: '2',
+          firstName: 'Jane',
+          lastName: 'Doe',
+          email: 'jane@example.com',
         },
       ]
 
@@ -75,8 +86,8 @@ describe("UserController", () => {
       expect(mockResponse.json).toHaveBeenCalledWith(mockUsers)
     })
 
-    it("should handle errors", async () => {
-      const error = new Error("Database error")
+    it('should handle errors', async () => {
+      const error = new Error('Database error')
       mockRepository.find.mockRejectedValue(error)
 
       await userController.getAllUsers(
@@ -89,16 +100,16 @@ describe("UserController", () => {
     })
   })
 
-  describe("getUserById", () => {
-    it("should return a user when found", async () => {
+  describe('getUserById', () => {
+    it('should return a user when found', async () => {
       const mockUser = {
-        id: "1",
-        firstName: "John",
-        lastName: "Doe",
-        email: "john@example.com",
+        id: '1',
+        firstName: 'John',
+        lastName: 'Doe',
+        email: 'john@example.com',
       }
 
-      mockRequest.params = { id: "1" }
+      mockRequest.params = { id: '1' }
       mockRepository.findOne.mockResolvedValue(mockUser)
 
       await userController.getUserById(
@@ -108,13 +119,13 @@ describe("UserController", () => {
       )
 
       expect(mockRepository.findOne).toHaveBeenCalledWith({
-        where: { id: "1" },
+        where: { id: '1' },
       })
       expect(mockResponse.json).toHaveBeenCalledWith(mockUser)
     })
 
-    it("should return 404 when user not found", async () => {
-      mockRequest.params = { id: "1" }
+    it('should return 404 when user not found', async () => {
+      mockRequest.params = { id: '1' }
       mockRepository.findOne.mockResolvedValue(null)
 
       await userController.getUserById(
@@ -125,13 +136,13 @@ describe("UserController", () => {
 
       expect(mockResponse.status).toHaveBeenCalledWith(404)
       expect(mockResponse.json).toHaveBeenCalledWith({
-        error: "User not found",
+        error: 'User not found',
       })
     })
 
-    it("should handle errors", async () => {
-      const error = new Error("Database error")
-      mockRequest.params = { id: "1" }
+    it('should handle errors', async () => {
+      const error = new Error('Database error')
+      mockRequest.params = { id: '1' }
       mockRepository.findOne.mockRejectedValue(error)
 
       await userController.getUserById(
@@ -144,16 +155,16 @@ describe("UserController", () => {
     })
   })
 
-  describe("createUser", () => {
-    it("should create a new user", async () => {
+  describe('createUser', () => {
+    it('should create a new user', async () => {
       const mockUser = {
-        firstName: "John",
-        lastName: "Doe",
-        email: "john@example.com",
+        firstName: 'John',
+        lastName: 'Doe',
+        email: 'john@example.com',
       }
 
       const createdUser = {
-        id: "1",
+        id: '1',
         ...mockUser,
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -175,18 +186,15 @@ describe("UserController", () => {
       expect(mockResponse.json).toHaveBeenCalledWith(createdUser)
     })
 
-    it("should handle errors", async () => {
-      const error = new Error("Database error")
+    it('should handle errors', async () => {
+      const error = new Error('Database error')
       mockRequest.body = {
-        firstName: "John",
-        lastName: "Doe",
-        email: "john@example.com",
+        firstName: 'John',
+        lastName: 'Doe',
+        email: 'john@example.com',
       }
       // This should not fail but it does because of the jest library
-      // mockRepository.create.mockRejectedValue("Database error");
-      mockRepository.create = jest.fn(() => {
-        throw error
-      })
+      mockRepository.create.mockRejectedValue(error)
 
       await userController.createUser(
         mockRequest as Request,
@@ -198,20 +206,20 @@ describe("UserController", () => {
     })
   })
 
-  describe("updateUser", () => {
-    it("should update an existing user", async () => {
+  describe('updateUser', () => {
+    it('should update an existing user', async () => {
       const mockUser = {
-        id: "1",
-        firstName: "John",
-        lastName: "Doe",
-        email: "john@example.com",
+        id: '1',
+        firstName: 'John',
+        lastName: 'Doe',
+        email: 'john@example.com',
       }
 
       const updateData = {
-        firstName: "Johnny",
+        firstName: 'Johnny',
       }
 
-      mockRequest.params = { id: "1" }
+      mockRequest.params = { id: '1' }
       mockRequest.body = updateData
       mockRepository.findOne.mockResolvedValue(mockUser)
       mockRepository.merge.mockReturnValue({ ...mockUser, ...updateData })
@@ -224,7 +232,7 @@ describe("UserController", () => {
       )
 
       expect(mockRepository.findOne).toHaveBeenCalledWith({
-        where: { id: "1" },
+        where: { id: '1' },
       })
       expect(mockRepository.merge).toHaveBeenCalled()
       expect(mockRepository.save).toHaveBeenCalled()
@@ -234,9 +242,9 @@ describe("UserController", () => {
       })
     })
 
-    it("should return 404 when user not found", async () => {
-      mockRequest.params = { id: "1" }
-      mockRequest.body = { firstName: "Johnny" }
+    it('should return 404 when user not found', async () => {
+      mockRequest.params = { id: '1' }
+      mockRequest.body = { firstName: 'Johnny' }
       mockRepository.findOne.mockResolvedValue(null)
 
       await userController.updateUser(
@@ -247,14 +255,14 @@ describe("UserController", () => {
 
       expect(mockResponse.status).toHaveBeenCalledWith(404)
       expect(mockResponse.json).toHaveBeenCalledWith({
-        error: "User not found",
+        error: 'User not found',
       })
     })
 
-    it("should handle errors", async () => {
-      const error = new Error("Database error")
-      mockRequest.params = { id: "1" }
-      mockRequest.body = { firstName: "Johnny" }
+    it('should handle errors', async () => {
+      const error = new Error('Database error')
+      mockRequest.params = { id: '1' }
+      mockRequest.body = { firstName: 'Johnny' }
       mockRepository.findOne.mockRejectedValue(error)
 
       await userController.updateUser(
@@ -267,16 +275,16 @@ describe("UserController", () => {
     })
   })
 
-  describe("deleteUser", () => {
-    it("should delete an existing user", async () => {
+  describe('deleteUser', () => {
+    it('should delete an existing user', async () => {
       const mockUser = {
-        id: "1",
-        firstName: "John",
-        lastName: "Doe",
-        email: "john@example.com",
+        id: '1',
+        firstName: 'John',
+        lastName: 'Doe',
+        email: 'john@example.com',
       }
 
-      mockRequest.params = { id: "1" }
+      mockRequest.params = { id: '1' }
       mockRepository.findOne.mockResolvedValue(mockUser)
       mockRepository.remove.mockResolvedValue(mockUser)
 
@@ -287,15 +295,15 @@ describe("UserController", () => {
       )
 
       expect(mockRepository.findOne).toHaveBeenCalledWith({
-        where: { id: "1" },
+        where: { id: '1' },
       })
       expect(mockRepository.remove).toHaveBeenCalledWith(mockUser)
       expect(mockResponse.status).toHaveBeenCalledWith(204)
       expect(mockResponse.send).toHaveBeenCalled()
     })
 
-    it("should return 404 when user not found", async () => {
-      mockRequest.params = { id: "1" }
+    it('should return 404 when user not found', async () => {
+      mockRequest.params = { id: '1' }
       mockRepository.findOne.mockResolvedValue(null)
 
       await userController.deleteUser(
@@ -306,13 +314,13 @@ describe("UserController", () => {
 
       expect(mockResponse.status).toHaveBeenCalledWith(404)
       expect(mockResponse.json).toHaveBeenCalledWith({
-        error: "User not found",
+        error: 'User not found',
       })
     })
 
-    it("should handle errors", async () => {
-      const error = new Error("Database error")
-      mockRequest.params = { id: "1" }
+    it('should handle errors', async () => {
+      const error = new Error('Database error')
+      mockRequest.params = { id: '1' }
       mockRepository.findOne.mockRejectedValue(error)
 
       await userController.deleteUser(
@@ -320,6 +328,45 @@ describe("UserController", () => {
         mockResponse as Response,
         nextFunction
       )
+
+      expect(nextFunction).toHaveBeenCalledWith(error)
+    })
+  })
+
+  describe('login', () => {
+    it('should return a token when valid credentials are provided', async () => {
+      const mockUser = {
+        id: '1',
+        email: 'john@example.com',
+        password: 'password123',
+        comparePassword: jest.fn().mockResolvedValue(true),
+      }
+
+      mockRequest.body = { email: 'john@example.com', password: 'password123' }
+      mockRepository.findOne.mockResolvedValue(mockUser)
+      ;(jwt.sign as jest.Mock).mockReturnValue('mockToken')
+
+      await userController.login(mockRequest as Request, mockResponse as Response, nextFunction)
+
+      expect(mockResponse.json).toHaveBeenCalledWith({ token: 'mockToken' })
+    })
+
+    it('should return 401 when invalid credentials are provided', async () => {
+      mockRequest.body = { email: 'john@example.com', password: 'wrongpassword' }
+      mockRepository.findOne.mockResolvedValue(null)
+
+      await userController.login(mockRequest as Request, mockResponse as Response, nextFunction)
+
+      expect(mockResponse.status).toHaveBeenCalledWith(401)
+      expect(mockResponse.json).toHaveBeenCalledWith({ error: 'Invalid credentials' })
+    })
+
+    it('should handle errors', async () => {
+      const error = new Error('Database error')
+      mockRequest.body = { email: 'john@example.com', password: 'password123' }
+      mockRepository.findOne.mockRejectedValue(error)
+
+      await userController.login(mockRequest as Request, mockResponse as Response, nextFunction)
 
       expect(nextFunction).toHaveBeenCalledWith(error)
     })

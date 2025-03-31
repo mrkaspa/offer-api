@@ -1,15 +1,12 @@
-import { Request, Response, NextFunction } from "express"
-import { AppDataSource } from "@/config/database"
-import { User } from "@/entities/User"
+import { Request, Response, NextFunction } from 'express'
+import { AppDataSource } from '@/config/database'
+import { User } from '@/entities/User'
+import jwt from 'jsonwebtoken'
 
 export class UserController {
   private userRepository = AppDataSource.getRepository(User)
 
-  public getAllUsers = async (
-    req: Request,
-    res: Response,
-    next: NextFunction
-  ): Promise<void> => {
+  public getAllUsers = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const users = await this.userRepository.find()
       res.json(users)
@@ -18,18 +15,14 @@ export class UserController {
     }
   }
 
-  public getUserById = async (
-    req: Request,
-    res: Response,
-    next: NextFunction
-  ): Promise<void> => {
+  public getUserById = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const user = await this.userRepository.findOne({
         where: { id: req.params.id },
       })
 
       if (!user) {
-        res.status(404).json({ error: "User not found" })
+        res.status(404).json({ error: 'User not found' })
         return
       }
 
@@ -39,18 +32,15 @@ export class UserController {
     }
   }
 
-  public createUser = async (
-    req: Request,
-    res: Response,
-    next: NextFunction
-  ): Promise<void> => {
+  public createUser = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const { firstName, lastName, email } = req.body
+      const { firstName, lastName, email, password } = req.body
 
-      const user = this.userRepository.create({
+      const user = await this.userRepository.create({
         firstName,
         lastName,
         email,
+        password,
       })
 
       const createdUser = await this.userRepository.save(user)
@@ -60,18 +50,14 @@ export class UserController {
     }
   }
 
-  public updateUser = async (
-    req: Request,
-    res: Response,
-    next: NextFunction
-  ): Promise<void> => {
+  public updateUser = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const user = await this.userRepository.findOne({
         where: { id: req.params.id },
       })
 
       if (!user) {
-        res.status(404).json({ error: "User not found" })
+        res.status(404).json({ error: 'User not found' })
         return
       }
 
@@ -84,23 +70,48 @@ export class UserController {
     }
   }
 
-  public deleteUser = async (
-    req: Request,
-    res: Response,
-    next: NextFunction
-  ): Promise<void> => {
+  public deleteUser = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const user = await this.userRepository.findOne({
         where: { id: req.params.id },
       })
 
       if (!user) {
-        res.status(404).json({ error: "User not found" })
+        res.status(404).json({ error: 'User not found' })
         return
       }
 
       await this.userRepository.remove(user)
       res.status(204).send()
+    } catch (error) {
+      next(error)
+    }
+  }
+
+  public login = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { email, password } = req.body
+
+      const user = await this.userRepository.findOne({
+        where: { email },
+      })
+
+      if (!user) {
+        res.status(401).json({ error: 'Invalid credentials' })
+        return
+      }
+
+      const isPasswordValid = await user.comparePassword(password)
+
+      if (!isPasswordValid) {
+        res.status(401).json({ error: 'Invalid credentials' })
+        return
+      }
+
+      const token = jwt.sign({ userId: user.id }, process.env.JWT_SECRET || 'testsecret', {
+        expiresIn: '1h',
+      })
+      res.json({ token })
     } catch (error) {
       next(error)
     }
