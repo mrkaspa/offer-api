@@ -1,22 +1,25 @@
-import { Router } from "express"
-import { UserController } from "@/controllers/UserController"
+import { Router } from 'express'
+import { UserController } from '@/controllers/UserController'
 
 const router = Router()
 const userController = new UserController()
 
 // GET all users
-router.get("/", userController.getAllUsers)
+router.get('/', userController.getAllUsers)
 
 // GET single user
-router.get("/:id", userController.getUserById)
+router.get('/:id', userController.getUserById)
 
 // POST new user
-router.post("/", userController.createUser)
+router.post('/', userController.createUser)
 
 // PUT update user
-router.put("/:id", userController.updateUser)
+router.put('/:id', userController.updateUser)
 
 // DELETE user
-router.delete("/:id", userController.deleteUser)
+router.delete('/:id', userController.deleteUser)
+
+// POST login
+router.post('/login', userController.login)
 
 export default router
